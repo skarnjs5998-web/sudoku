@@ -1,18 +1,16 @@
 import streamlit as st
 import random
 import copy
+import time
 
 # ------------------------
 # 스도쿠 관련 함수들
 # ------------------------
 def is_valid(board, row, col, num):
-    # 행 검사
     if num in board[row]:
         return False
-    # 열 검사
     if num in [board[r][col] for r in range(9)]:
         return False
-    # 3x3 박스 검사
     start_row, start_col = 3 * (row // 3), 3 * (col // 3)
     for r in range(start_row, start_row + 3):
         for c in range(start_col, start_col + 3):
@@ -76,11 +74,11 @@ def generate_full_board():
     return board
 
 
-def generate_puzzle():
+def generate_puzzle(hole_attempts=40):
     board = generate_full_board()
     puzzle = copy.deepcopy(board)
 
-    attempts = 40  # 난이도 조절 (많을수록 칸 많이 뚫음)
+    attempts = hole_attempts
     while attempts > 0:
         row, col = random.randint(0, 8), random.randint(0, 8)
         while puzzle[row][col] == 0:
@@ -101,21 +99,43 @@ def generate_puzzle():
 # ------------------------
 st.title("🧩 스도쿠 게임 (Streamlit)")
 
+# 난이도 선택
+level = st.sidebar.selectbox("난이도 선택", ["쉬움", "보통", "어려움"])
+if level == "쉬움":
+    holes = 30
+elif level == "보통":
+    holes = 40
+else:
+    holes = 50
+
+# 세션 상태 초기화
 if "puzzle" not in st.session_state:
-    st.session_state.puzzle, st.session_state.solution = generate_puzzle()
+    st.session_state.puzzle, st.session_state.solution = generate_puzzle(holes)
     st.session_state.user_board = copy.deepcopy(st.session_state.puzzle)
+    st.session_state.start_time = time.time()
 
 if st.button("🔄 새 퍼즐 생성"):
-    st.session_state.puzzle, st.session_state.solution = generate_puzzle()
+    st.session_state.puzzle, st.session_state.solution = generate_puzzle(holes)
     st.session_state.user_board = copy.deepcopy(st.session_state.puzzle)
+    st.session_state.start_time = time.time()
+
+# 타이머 표시
+elapsed = int(time.time() - st.session_state.start_time)
+st.write(f"⏱️ 경과 시간: {elapsed//60}분 {elapsed%60}초")
 
 # 보드 표시
 st.write("## 퍼즐")
 for r in range(9):
     cols = st.columns(9)
     for c in range(9):
+        style = "border:1px solid black; text-align:center;"
+        if (c+1) % 3 == 0 and c != 8:
+            style = "border-right:3px solid black; border:1px solid gray; text-align:center;"
+        if (r+1) % 3 == 0 and r != 8:
+            style = style.replace("border:1px", "border-bottom:3px")
+
         if st.session_state.puzzle[r][c] != 0:
-            cols[c].markdown(f"**{st.session_state.puzzle[r][c]}**")
+            cols[c].markdown(f"<div style='{style}'><b>{st.session_state.puzzle[r][c]}</b></div>", unsafe_allow_html=True)
         else:
             st.session_state.user_board[r][c] = cols[c].number_input(
                 "", min_value=0, max_value=9, value=st.session_state.user_board[r][c], key=f"{r}-{c}", step=1
